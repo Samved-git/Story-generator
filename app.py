@@ -3,21 +3,26 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-# Handle Google API key gracefully
-google_api_key = st.secrets.get("google_api_key", None)
-if not google_api_key:
-    st.error("Google API key missing! Please add 'google_api_key' to .streamlit/secrets.toml. The app will not work until then.")
-    st.stop()  # Prevents rest of the code from running
+# Check if google_api_key is available in secrets and show debug info
+if "google_api_key" not in st.secrets:
+    st.error(
+        "Google API key missing! Please add 'google_api_key' to your "
+        ".streamlit/secrets.toml file or via Streamlit Cloud Secrets. The app cannot run without it."
+    )
+    st.stop()
+else:
+    # Display part of the key for debugging (remove this in production)
+    st.write("Google API key loaded, starts with:", st.secrets["google_api_key"][:8] + "...")
 
+GOOGLE_API_KEY = st.secrets["google_api_key"]
 GEMINI_IMG_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
 GEMINI_TEXT_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 def generate_image(prompt: str):
-    """Generate an image using Gemini API and return PIL image"""
     try:
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        params = {"key": google_api_key}
+        params = {"key": GOOGLE_API_KEY}
         response = requests.post(GEMINI_IMG_GEN_URL, json=payload, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
@@ -30,7 +35,6 @@ def generate_image(prompt: str):
         return None
 
 def generate_story(image: Image, topic: str):
-    """Generate a story with Gemini using the image as context"""
     try:
         buf = BytesIO()
         image.save(buf, format="PNG")
@@ -48,7 +52,7 @@ def generate_story(image: Image, topic: str):
             ]
         }
         headers = {"Content-Type": "application/json"}
-        params = {"key": google_api_key}
+        params = {"key": GOOGLE_API_KEY}
         response = requests.post(GEMINI_TEXT_GEN_URL, json=payload, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
