@@ -4,7 +4,7 @@ from PIL import Image
 from io import BytesIO
 
 # Check if google_api_key is available in secrets and show debug info
-if "google_api_key" not in st.secrets:
+if "GOOGLE_API_KEY" not in st.secrets:
     st.error(
         "Google API key missing! Please add 'google_api_key' to your "
         ".streamlit/secrets.toml file or via Streamlit Cloud Secrets. The app cannot run without it."
@@ -14,7 +14,7 @@ else:
     # Display part of the key for debugging (remove this in production)
     st.write("Google API key loaded, starts with:", st.secrets["google_api_key"][:8] + "...")
 
-GOOGLE_API_KEY = st.secrets["google_api_key"]
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 GEMINI_IMG_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
 GEMINI_TEXT_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
