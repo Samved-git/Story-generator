@@ -1,63 +1,75 @@
 import streamlit as st
-from openai import OpenAI
 import requests
 from PIL import Image
 from io import BytesIO
 
-# Initialize OpenAI client with Together.ai base URL
-client = OpenAI(
-    api_key=st.secrets['together_api_key'],
-    base_url="https://api.together.xyz/v1"
-)
+GOOGLE_API_KEY = st.secrets["google_api_key"]
+GEMINI_IMG_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
+GEMINI_TEXT_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 def generate_image(prompt: str):
-    """Generate an image using FLUX model and return both image and URL"""
+    """Generate an image using Gemini API and return PIL image and temporary URL"""
     try:
-        response = client.images.generate(
-            model="black-forest-labs/FLUX.1-schnell-Free",
-            prompt=prompt,
-        )
-        # Get image URL from response
-        image_url = response.data[0].url
-        
-        # Load image and return both image and URL
-        response = requests.get(image_url)
-        return Image.open(BytesIO(response.content)), image_url
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}]
+        }
+        params = {"key": GOOGLE_API_KEY}
+        response = requests.post(GEMINI_IMG_GEN_URL, json=payload, params=params, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        # Gemini returns base64 PNG image in candidates[0]['content']['parts'][0]['inline_data']['data']
+        img_b64 = data["candidates"][0]["content"]["parts"][0]["inline_data"]["data"]
+        img_bytes = BytesIO(bytes.fromhex(img_b64))
+        pil_img = Image.open(img_bytes)
+        # You can optionally upload to a temp file or display directly; for simplicity, skip URL return
+        return pil_img, None
     except Exception as e:
         st.error(f"Failed to generate image: {str(e)}")
         return None, None
 
-def generate_story(image_url: str, topic: str):
-    """Generate a story using Llama model with the image URL"""
+def generate_story(image: Image, topic: str):
+    """Generate a story with Gemini using the image as context"""
     try:
-        prompt = f"Look at this image: {image_url}. Write a short story about it related to the topic: {topic}."
-        response = client.chat.completions.create(
-            model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
+        # Convert image to bytes and encode as base64 for Gemini
+        buf = BytesIO()
+        image.save(buf, format="PNG")
+        buf.seek(0)
+        img_bytes = buf.read()
+        img_b64 = img_bytes.hex()
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": f"Write a short story about this image related to the topic: {topic}."},
+                        {"inline_data": {"mime_type": "image/png", "data": img_b64}}
+                    ]
+                }
+            ]
+        }
+        headers = {"Content-Type": "application/json"}
+        params = {"key": GOOGLE_API_KEY}
+        response = requests.post(GEMINI_TEXT_GEN_URL, json=payload, params=params, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        story = data["candidates"][0]["content"]["parts"][0]["text"]
+        return story
     except Exception as e:
         st.error(f"Failed to generate story: {str(e)}")
         return None
 
-# Main app
-st.title("🎨 AI Story Generator")
+st.title("🎨 AI Story Generator (Google Gemini)")
 st.write("Generate an image and story from your topic!")
 
-# Get user input
 topic = st.text_input("What's your story about?", placeholder="e.g., A cat playing the piano")
 
-# Generate button
 if st.button("Generate", type="primary"):
     if topic:
         with st.spinner("Creating your story..."):
-            # Generate image and get URL
-            image, image_url = generate_image(f"An image related to {topic}")
-            if image and image_url:
+            image, _ = generate_image(f"An image related to {topic}")
+            if image:
                 st.image(image, caption="Generated Image")
-                
-                # Generate and display story using the image URL
-                story = generate_story(image_url, topic)
+                story = generate_story(image, topic)
                 if story:
                     st.write("### Your Story")
                     st.write(story)
