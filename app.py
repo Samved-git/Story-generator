@@ -1,14 +1,13 @@
 import streamlit as st
-import sys
 import requests
 from PIL import Image
 from io import BytesIO
 
-# Check for Google API key in secrets
-if "google_api_key" not in st.secrets:
-    st.error("Google API key missing! Please add google_api_key to .streamlit/secrets.toml")
-    sys.exit(1)
-GOOGLE_API_KEY = st.secrets["google_api_key"]
+# Handle Google API key gracefully
+google_api_key = st.secrets.get("google_api_key", None)
+if not google_api_key:
+    st.error("Google API key missing! Please add 'google_api_key' to .streamlit/secrets.toml. The app will not work until then.")
+    st.stop()  # Prevents rest of the code from running
 
 GEMINI_IMG_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
 GEMINI_TEXT_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
@@ -18,7 +17,7 @@ def generate_image(prompt: str):
     try:
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        params = {"key": GOOGLE_API_KEY}
+        params = {"key": google_api_key}
         response = requests.post(GEMINI_IMG_GEN_URL, json=payload, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
@@ -49,7 +48,7 @@ def generate_story(image: Image, topic: str):
             ]
         }
         headers = {"Content-Type": "application/json"}
-        params = {"key": GOOGLE_API_KEY}
+        params = {"key": google_api_key}
         response = requests.post(GEMINI_TEXT_GEN_URL, json=payload, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
