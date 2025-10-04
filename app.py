@@ -1,37 +1,38 @@
 import streamlit as st
+import sys
 import requests
 from PIL import Image
 from io import BytesIO
 
+# Check for Google API key in secrets
+if "google_api_key" not in st.secrets:
+    st.error("Google API key missing! Please add google_api_key to .streamlit/secrets.toml")
+    sys.exit(1)
 GOOGLE_API_KEY = st.secrets["google_api_key"]
+
 GEMINI_IMG_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
 GEMINI_TEXT_GEN_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
 
 def generate_image(prompt: str):
-    """Generate an image using Gemini API and return PIL image and temporary URL"""
+    """Generate an image using Gemini API and return PIL image"""
     try:
         headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
-        }
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
         params = {"key": GOOGLE_API_KEY}
         response = requests.post(GEMINI_IMG_GEN_URL, json=payload, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
-        # Gemini returns base64 PNG image in candidates[0]['content']['parts'][0]['inline_data']['data']
         img_b64 = data["candidates"][0]["content"]["parts"][0]["inline_data"]["data"]
         img_bytes = BytesIO(bytes.fromhex(img_b64))
         pil_img = Image.open(img_bytes)
-        # You can optionally upload to a temp file or display directly; for simplicity, skip URL return
-        return pil_img, None
+        return pil_img
     except Exception as e:
         st.error(f"Failed to generate image: {str(e)}")
-        return None, None
+        return None
 
 def generate_story(image: Image, topic: str):
     """Generate a story with Gemini using the image as context"""
     try:
-        # Convert image to bytes and encode as base64 for Gemini
         buf = BytesIO()
         image.save(buf, format="PNG")
         buf.seek(0)
@@ -58,7 +59,7 @@ def generate_story(image: Image, topic: str):
         st.error(f"Failed to generate story: {str(e)}")
         return None
 
-st.title("🎨 AI Story Generator (Google Gemini)")
+st.title("🎨 AI Story Generator (Gemini)")
 st.write("Generate an image and story from your topic!")
 
 topic = st.text_input("What's your story about?", placeholder="e.g., A cat playing the piano")
@@ -66,7 +67,7 @@ topic = st.text_input("What's your story about?", placeholder="e.g., A cat playi
 if st.button("Generate", type="primary"):
     if topic:
         with st.spinner("Creating your story..."):
-            image, _ = generate_image(f"An image related to {topic}")
+            image = generate_image(f"An image related to {topic}")
             if image:
                 st.image(image, caption="Generated Image")
                 story = generate_story(image, topic)
